@@ -1,0 +1,24 @@
+doctype xml
+package(version="3.0", xmlns="http://www.idpf.org/2007/opf", prefix="rendition: http://www.idpf.org/vocab/rendition/#", unique-identifier="epub-id-1")
+    metadata(xmlns:dc="http://purl.org/dc/elements/1.1/",xmlns:opf="http://www.idpf.org/2007/opf")
+        dc:identifier(id="epub-id-1") urn:uuid:91ca6e79-1ac3-4f33-9a4b-e9c6cfe79cae
+        meta(property="dcterms:modified") 2011-01-01T12:00:00Z
+        dc:language en-US
+
+        dc:title#title-1 #{title}
+        meta(refines="#title-1", property="title-type") main
+
+        dc:title#title-2 objc.io
+        meta(refines="#title-2", property="title-type") collection
+        meta(refines="#title-2", property="group-position") 1
+
+        dc:title#title-3 objc.io: #{title}
+        meta(refines="#title-3", property="title-type") extended
+
+    manifest
+        each item in manifest
+            item(id=item.id, href=item.href, media-type=item.mediaType, properties=item.properties)
+
+    spine
+        each item in spine
+            itemref(idref=item.id, properties=item.properties)

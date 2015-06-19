@@ -1,0 +1,14 @@
+doctype xml
+html(xmlns="http://www.w3.org/1999/xhtml")
+    head
+        title #{article.title}
+        link(rel="stylesheet", type="text/css", href="styles/main.css")
+    body
+        .c-article__header
+            h1.c-article__header__title #{article.title}
+            p.c-article__header__byline by
+                each author, i in article.authors
+                    a(rel="author", href=author.uri)  #{author.name}
+                    if article.authors[i + 1] !== undefined
+                        | and
+        .c-text !{article.text}

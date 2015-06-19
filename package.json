@@ -1,0 +1,20 @@
+{
+  "name": "objc-epub",
+  "version": "0.1.0",
+  "description": "Save objc.io issues as epub books",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Marijn van der Werf <mail@marijnvdwerf.nl> (http://marijnvdwerf.nl)",
+  "license": "ISC",
+  "dependencies": {
+    "archiver": "^0.14.4",
+    "cheerio": "^0.19.0",
+    "highlight.js": "^8.6.0",
+    "jade": "^1.11.0",
+    "ncp": "^2.0.0",
+    "request": "^2.58.0",
+    "underscore": "^1.8.3"
+  }
+}

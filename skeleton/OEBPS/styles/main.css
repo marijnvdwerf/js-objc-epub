@@ -1,0 +1,264 @@
+@font-face {
+    font-family: 'Roboto Mono';
+    src: url('../fonts/RobotoMono-Regular.ttf');
+    font-weight: normal;
+    font-style: normal
+}
+
+@font-face {
+    font-family: 'Roboto';
+    src: url('../fonts/Roboto-Bold.ttf');
+    font-weight: bold;
+    font-style: normal
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+}
+
+body {
+    font-size: 0.7em;
+    /*line-height: 16px;*/
+    line-height: 1.6em;
+}
+
+pre, code {
+    font-family: 'Roboto Mono', monospace;
+    font-weight: normal;
+    font-style: normal;
+}
+
+pre {
+    font-size: .85em;
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    margin: 1.17647em 0;
+    padding: 1.17647em;
+    line-height: 1.25;
+    color: rgb(26, 26, 26);
+    border-radius: 5px;
+    background: rgb(247, 247, 247);
+}
+
+p {
+    line-height: 1.5;
+    margin-top: 1.25em;
+}
+
+p > code {
+    background: rgb(242, 242, 242);
+    border-radius: 5px;
+    padding: .1em .25em;
+    color: rgb(34, 34, 34);
+    font-size: .9em;
+    word-wrap: break-word;
+}
+
+h2 + p, h3 + p, h4 + p {
+    margin-top: 1em;
+}
+
+h1 {
+    text-align: left;
+}
+
+h2, h3, h4 {
+    font-family: Roboto, sans-serif;
+    font-weight: bold;
+    line-height: 1.2;
+}
+
+h2 {
+    font-size: 1.728em;
+    padding-top: 2.0736em;
+    max-width: 21.99074em;
+}
+
+h3 {
+    font-size: 1.44em;
+    padding-top: 2.0736em;
+    max-width: 26.38889em;
+}
+
+h4 {
+    font-size: 1.2em;
+    padding-top: 2.0736em;
+    font-weight: bold;
+    max-width: 31.66667em;
+}
+
+a {
+    color: #08c;
+    text-decoration: none
+}
+
+a:hover, a:focus {
+    border-bottom: solid 1px
+}
+
+h1.title {
+}
+
+h2.author {
+}
+
+h3.date {
+}
+
+ol.toc {
+    padding: 0;
+    margin-left: 1em;
+}
+
+ol.toc li {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+a.footnoteRef {
+    vertical-align: super;
+}
+
+pre > code:before {
+    font-family: Roboto, sans-serif;
+    font-variant: small-caps;
+    font-size: .95em;
+    font-weight: bold;
+    letter-spacing: .1em;
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+pre > code {
+    display: block;
+    overflow-x: auto;
+    overflow-y: hidden
+}
+
+pre > code.json:before {
+    content: "JSON" !important
+}
+
+pre > code.sql:before {
+    content: "SQL" !important
+}
+
+pre > code.java:before {
+    content: "Java" !important
+}
+
+pre > code.objc:before, pre > code.objectivec:before {
+    content: "Objective-C" !important
+}
+
+pre > code.swift:before {
+    content: "Swift" !important
+}
+
+pre > code.xml:before {
+    content: "XML" !important
+}
+
+pre > code:before {
+    display: block;
+    color: #a6a6a6;
+    margin-bottom: 1.42857em
+}
+
+.hljs .hljs-comment, .hljs .hljs-template_comment, .hljs .hljs-javadoc, .hljs .hljs-comment * {
+    color: #49992f
+}
+
+.hljs .hljs-keyword, .hljs .hljs-literal, .hljs .hljs-nginx .hljs-title {
+    color: #aa0d91
+}
+
+.hljs .hljs-method, .hljs .hljs-list .hljs-title, .hljs .hljs-tag .hljs-title, .hljs .hljs-setting .hljs-value, .hljs .hljs-winutils, .hljs .hljs-tex .hljs-command, .hljs .hljs-http .hljs-title, .hljs .hljs-request, .hljs .hljs-status {
+    color: #008
+}
+
+.hljs .hljs-envvar, .hljs .hljs-tex .hljs-special {
+    color: #660
+}
+
+.hljs .hljs-string {
+    color: #ef4134
+}
+
+.hljs .hljs-tag .hljs-value, .hljs .hljs-cdata, .hljs .hljs-filter .hljs-argument, .hljs .hljs-attr_selector, .hljs .hljs-apache .hljs-cbracket, .hljs .hljs-date, .hljs .hljs-regexp {
+    color: #080
+}
+
+.hljs .hljs-sub .hljs-identifier, .hljs .hljs-pi, .hljs .hljs-tag, .hljs .hljs-tag .hljs-keyword, .hljs .hljs-decorator, .hljs .hljs-ini .hljs-title, .hljs .hljs-shebang, .hljs .hljs-prompt, .hljs .hljs-hexcolor, .hljs .hljs-rules .hljs-value, .hljs .hljs-css .hljs-value .hljs-number, .hljs .hljs-symbol, .hljs .hljs-symbol .hljs-string, .hljs .hljs-number, .hljs .hljs-css .hljs-function, .hljs .hljs-clojure .hljs-title, .hljs .hljs-clojure .hljs-built_in {
+    color: #0000aa
+}
+
+.hljs .hljs-class .hljs-title, .hljs .hljs-haskell .hljs-type, .hljs .hljs-smalltalk .hljs-class, .hljs .hljs-javadoctag, .hljs .hljs-yardoctag, .hljs .hljs-phpdoc, .hljs .hljs-typename, .hljs .hljs-tag .hljs-attribute, .hljs .hljs-doctype, .hljs .hljs-class .hljs-id, .hljs .hljs-built_in, .hljs .hljs-setting, .hljs .hljs-params, .hljs .hljs-clojure .hljs-attribute {
+    color: #c56021
+}
+
+.hljs .hljs-variable {
+    color: #23a9db
+}
+
+.hljs .hljs-css .hljs-tag, .hljs .hljs-rules .hljs-property, .hljs .hljs-pseudo, .hljs .hljs-subst {
+    color: #222222
+}
+
+.hljs .hljs-css .hljs-class, .hljs .hljs-css .hljs-id {
+    color: #9B703F
+}
+
+.hljs .hljs-value .hljs-important {
+    color: #ff7700;
+    font-weight: bold
+}
+
+.hljs .hljs-rules .hljs-keyword {
+    color: #C5AF75
+}
+
+.hljs .hljs-annotation, .hljs .hljs-apache .hljs-sqbracket, .hljs .hljs-nginx .hljs-built_in {
+    color: #9B859D
+}
+
+.hljs .hljs-preprocessor, .hljs .hljs-preprocessor * {
+    color: #8d4228
+}
+
+.hljs .hljs-tex .hljs-formula {
+    background-color: #EEE;
+    font-style: italic
+}
+
+.hljs .hljs-diff .hljs-header, .hljs .hljs-chunk {
+    color: #808080;
+    font-weight: bold
+}
+
+.hljs .hljs-diff .hljs-change {
+    background-color: #BCCFF9
+}
+
+.hljs .hljs-addition {
+    background-color: #BAEEBA
+}
+
+.hljs .hljs-deletion {
+    background-color: #FFC8BD
+}
+
+.hljs .hljs-comment .hljs-yardoctag {
+    font-weight: bold
+}
+
+.hljs .hljs-method .hljs-id {
+    color: #222222
+}
