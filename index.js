@@ -5,28 +5,10 @@ var url = require('url');
 var _ = require('underscore');
 var jade = require('jade');
 var highlight = require('highlight.js');
-var ncp = require('ncp').ncp;
 var archiver = require('archiver');
 
 
 var overviewUrl = 'http://www.objc.io/issues/';
-
-function main(issueToGet) {
-    request({
-        uri: overviewUrl,
-        gzip: true
-    }, function(error, response, body) {
-        if (error) {
-            console.error(error);
-            return;
-        }
-
-        var $ = cheerio.load(body);
-        var issueURI = $('.c-issue-unit[id="' + issueToGet + '"]').find('a').first().attr('href');
-
-        downloadIssue(url.resolve(overviewUrl, issueURI));
-    });
-}
 
 function getSlugfromUri(issueUri) {
     var components = url.parse(issueUri).pathname.split('/');
@@ -68,7 +50,12 @@ function getMimeType(filename) {
     }
 }
 
-function downloadIssue(issueUri) {
+function downloadIssueWithUrl(issueUri) {
+    epubArchive = archiver.create('zip')
+        .file(__dirname + '/skeleton/mimetype', {name: 'mimetype', store: true})
+        .bulk([
+            {expand: true, cwd: __dirname + '/skeleton', src: ['META-INF/**', 'OEBPS/**']}
+        ]);
 
     request({
         uri: issueUri,
@@ -89,28 +76,20 @@ function downloadIssue(issueUri) {
             articles: []
         };
 
+        var slug = getSlugfromUri(issueUri);
+
         $('.c-issue__article').each(function(i, el) {
             var article = {
                 title: $(el).find('.c-issue__article__name').text().trim(),
                 uri: url.resolve(issueUri, $(el).find('a').first().attr('href'))
             };
 
-
             article.id = 'ch' + i + '-' + getSlugfromUri(article.uri);
 
             issue.articles.push(article);
         });
 
-
-        var tempDir = __dirname + '/tmp';
-
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir);
-        }
-
-        var slug = getSlugfromUri(issueUri);
-        var epubDir = tempDir + '/' + slug + '.epub';
-        var contentDir = epubDir + '/OEBPS/';
+        epubArchive.pipe(fs.createWriteStream(process.cwd() + '/' + slug + '.epub'));
 
         var epub = {
             title: issue.name,
@@ -133,26 +112,20 @@ function downloadIssue(issueUri) {
             }
         };
 
-        ncp(__dirname + '/skeleton', epubDir, function(err) {
-            if (err) {
-                console.error(err);
-            }
-
-            request(issue.coverUri).pipe(fs.createWriteStream(contentDir + '/images/cover.jpg'));
-            epub.manifest.push({
-                id: 'cover',
-                href: 'images/cover.jpg',
-                mediaType: 'image/jpeg',
-                properties: 'cover-image'
-            });
+        epubArchive.append(request(issue.coverUri), {name: 'OEBPS/images/cover.jpg'});
+        epub.manifest.push({
+            id: 'cover',
+            href: 'images/cover.jpg',
+            mediaType: 'image/jpeg',
+            properties: 'cover-image'
         });
-
 
         var contentTemplate = jade.compileFile(__dirname + '/template/content.opf.jade', {pretty: true});
         var articleTemplate = jade.compileFile(__dirname + '/template/article.jade', {pretty: true});
 
         var saveContent = _.after(issue.articles.length, function() {
-            fs.writeFileSync(contentDir + '/content.opf', contentTemplate(epub));
+            epubArchive.append(contentTemplate(epub), {name: 'OEBPS/content.opf'});
+            epubArchive.finalize();
         });
 
         epub.addFile('fonts/Roboto-Bold.ttf');
@@ -207,7 +180,8 @@ function downloadIssue(issueUri) {
                     var imgEl = $(this);
                     var imageUri = url.resolve(article.uri, imgEl.attr('src'));
                     var filename = getSlugfromUri(imageUri);
-                    request(imageUri).pipe(fs.createWriteStream(contentDir + '/images/' + filename));
+                    epubArchive.append(request(imageUri), {name: 'OEBPS/images/' + filename});
+
                     imgEl.attr('src', 'images/' + filename);
 
                     epub.manifest.push({
@@ -227,7 +201,7 @@ function downloadIssue(issueUri) {
                         return;
                     }
 
-                    var hl = highlight.highlight(lang, codeEl.text());
+                    var hl = highlight.highlightAuto(codeEl.text(), [lang]);
 
                     codeEl.empty().append(hl.value).addClass('hljs');
                 });
@@ -253,7 +227,7 @@ function downloadIssue(issueUri) {
 
                 var filename = (10 + chapterNo) + '-' + slug + '.html';
 
-                fs.writeFileSync(contentDir + '/' + filename, articleTemplate({article: article}));
+                epubArchive.append(articleTemplate({article: article}), {name: 'OEBPS/' + filename});
                 epub.manifest.push({
                     id: article.id,
                     href: filename,
@@ -266,21 +240,49 @@ function downloadIssue(issueUri) {
     });
 }
 
-function saveAsEpub(baseDir, fileName) {
-    var epub = archiver.create('zip');
+function downloadIssueWithNumber(no) {
+    request({
+        uri: overviewUrl,
+        gzip: true
+    }, function(error, response, body) {
+        if (error) {
+            console.error(error);
+            return;
+        }
 
-    epub
-        .file(baseDir + '/mimetype', {name: 'mimetype', store: true})
-        .bulk([
-            {expand: true, cwd: baseDir, src: ['META-INF/**', 'OEBPS/**']}
-        ])
-        .finalize()
-        .pipe(fs.createWriteStream(fileName));
+        var $ = cheerio.load(body);
+        var issueURI = $('.c-issue-unit[id="' + no + '"]').find('a').first().attr('href');
+
+        downloadIssueWithUrl(url.resolve(overviewUrl, issueURI));
+    });
 }
 
+function downloadAllIssues() {
+    request({
+        uri: overviewUrl,
+        gzip: true
+    }, function(error, response, body) {
+        if (error) {
+            console.error(error);
+            return;
+        }
 
-//main(23);
-//downloadIssue('http://www.objc.io/issues/11-android/');
+        var $ = cheerio.load(body);
+        var issues = $('.c-issue-unit')
+            .map(function(i, el) {
+                var $issue = $(this);
+                return {
+                    issue: $issue.attr('id'),
+                    uri: url.resolve(overviewUrl, $issue.find('a').first().attr('href'))
+                };
+            })
+            .get();
 
+        console.dir(issues);
+        _.each(issues, function(issue) {
+            downloadIssueWithUrl(issue.uri);
+        });
+    });
+}
 
-saveAsEpub(__dirname + '/tmp/11-android.epub', __dirname + '/11-android.epub');
+downloadIssueWithNumber(10);
