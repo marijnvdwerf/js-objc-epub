@@ -6,283 +6,249 @@ var _ = require('underscore');
 var jade = require('jade');
 var highlight = require('highlight.js');
 var archiver = require('archiver');
+var Promise = require('promise');
+var Queue = require('promise-queue');
 
+var P = {
+    request: Promise.denodeify(request)
+};
 
-var overviewUrl = 'http://www.objc.io/issues/';
+var util = require('./lib/util');
+var parser = require('./lib/parser');
 
-function getSlugfromUri(issueUri) {
-    var components = url.parse(issueUri).pathname.split('/');
+const URI_OVERVIEW = 'http://www.objc.io/issues/';
 
-    for (var i = components.length - 1; i >= 0; i--) {
-        if (components[i].trim() !== '') {
-            return components[i];
-        }
-    }
-
-    return null;
+/**
+ *
+ * @return {Rx.IPromise<R>}
+ */
+function getIssues() {
+    return P.request({
+        uri: URI_OVERVIEW,
+        gzip: true
+    }).then(function(arguments) {
+        return parser.parseIssueOverview(URI_OVERVIEW, arguments.body);
+    });
 }
 
-function getMimeType(filename) {
-    var ext = filename.split('.').pop().toLowerCase();
-
-    switch (ext) {
-        case 'png':
-            return 'image/png';
-
-        case 'gif':
-            return 'image/gif';
-
-        case 'jpg':
-        case 'jpeg':
-            return 'image/jpeg';
-
-        case 'css':
-            return 'text/css';
-
-        case 'otf':
-            return 'application/font-sfnt';
-
-        case 'ttf':
-            return 'application/x-font-ttf';
-
-        default:
-            return false;
-    }
-}
-
-function downloadIssueWithUrl(issueUri) {
-    epubArchive = archiver.create('zip')
-        .file(__dirname + '/skeleton/mimetype', {name: 'mimetype', store: true})
-        .bulk([
-            {expand: true, cwd: __dirname + '/skeleton', src: ['META-INF/**', 'OEBPS/**']}
-        ]);
-
-    request({
+function getFullIssueDescription(issueUri) {
+    return P.request({
         uri: issueUri,
         gzip: true
-    }, function(error, response, body) {
-        if (error) {
-            console.error(error);
-            return;
-        }
+    }).then(function(arguments) {
 
-        var $ = cheerio.load(body);
+        var $ = cheerio.load(arguments.body);
 
         var issue = {
             number: $('.c-issue__header__number').text().trim(),
             name: $('.c-issue__header__name').text().trim(),
+            slug: util.getSlugfromUri(issueUri),
             date: $('.c-issue__header__date').text().trim(),
             coverUri: url.resolve(issueUri, $('.c-issue__cover img').attr('src')),
-            articles: []
+            articles: {}
         };
-
-        var slug = getSlugfromUri(issueUri);
 
         $('.c-issue__article').each(function(i, el) {
-            var article = {
+            var resolvedUri = url.resolve(issueUri, $(el).find('a').first().attr('href'));
+
+            issue.articles[i] = {
+                slug: util.getSlugfromUri(resolvedUri),
                 title: $(el).find('.c-issue__article__name').text().trim(),
-                uri: url.resolve(issueUri, $(el).find('a').first().attr('href'))
+                uri: resolvedUri
             };
-
-            article.id = 'ch' + i + '-' + getSlugfromUri(article.uri);
-
-            issue.articles.push(article);
         });
 
-        epubArchive.pipe(fs.createWriteStream(process.cwd() + '/' + slug + '.epub'));
+        return issue;
+    });
+}
 
-        var epub = {
-            title: issue.name,
-            manifest: [],
-            spine: [],
-            addItem: function(id, properties) {
-                if (properties === undefined || properties === null) {
-                    properties = false;
-                }
-                this.spine.push({id: id, properties: properties});
-            },
-            addFile: function(filename) {
-                var id = 'file-' + (this.manifest.length);
+function getArticle(articleUri) {
+    return P.request({
+        uri: articleUri,
+        gzip: true
+    }).then(function(arguments) {
+        var body = arguments.body.replace('<hr>', '<hr/>');
 
-                this.manifest.push({
-                    id: id,
-                    href: filename,
-                    mediaType: getMimeType(filename)
-                });
-            }
+        var $ = cheerio.load(body, {xmlMode: true});
+        var $text = $('.c-text');
+
+        var article = {
+            $: $,
+            slug: util.getSlugfromUri(articleUri),
+            title: $('.c-article__header__title').text().trim(),
+            authors: $('.c-article__header__byline a')
+                .map(function(i, anchorEl) {
+                    var $anchor = $(anchorEl);
+                    return {
+                        name: $anchor.text(),
+                        uri: url.resolve(articleUri, $anchor.attr('href'))
+                    };
+                })
+                .get()
         };
 
-        epubArchive.append(request(issue.coverUri), {name: 'OEBPS/images/cover.jpg'});
-        epub.manifest.push({
-            id: 'cover',
-            href: 'images/cover.jpg',
-            mediaType: 'image/jpeg',
-            properties: 'cover-image'
+        $text.find('a[rev]').attr('rev', null);
+
+        $text.find('pre > code').each(function() {
+            var codeEl = $(this);
+            var lang = codeEl.attr('class');
+
+            if (lang === undefined) {
+                return;
+            }
+
+            var hl = highlight.highlightAuto(codeEl.text(), [lang]);
+
+            codeEl.empty().append(hl.value).addClass('hljs');
         });
 
-        var contentTemplate = jade.compileFile(__dirname + '/template/content.opf.jade', {pretty: true});
-        var articleTemplate = jade.compileFile(__dirname + '/template/article.jade', {pretty: true});
+        $text.find('a').each(util.resolveUriAttribute($, articleUri, 'href'));
+        $text.find('img').each(util.resolveUriAttribute($, articleUri, 'src'));
 
-        var saveContent = _.after(issue.articles.length, function() {
-            epubArchive.append(contentTemplate(epub), {name: 'OEBPS/content.opf'});
-            epubArchive.finalize();
-        });
+        article.$text = $text;
 
-        epub.addFile('fonts/Roboto-Bold.ttf');
-        epub.addFile('fonts/RobotoMono-Regular.ttf');
-        epub.addFile('styles/main.css');
-        epub.manifest.push({
-            id: 'toc',
-            href: '01-toc.html',
-            mediaType: 'application/xhtml+xml',
-            properties: 'nav'
-        });
-        epub.manifest.push({
-            id: 'cover-page',
-            href: '00-cover.html',
-            mediaType: 'application/xhtml+xml'
-        });
+        return article;
+    });
+}
 
-        epub.addItem('cover-page', 'page-spread-right rendition:layout-pre-paginated');
-        epub.addItem('toc');
-        _.each(issue.articles, function(article) {
-            epub.addItem(article.id);
-        });
 
-        var imgCount = 0;
+function downloadIssueWithUrl(issueUri) {
+    console.log('Downloading ' + issueUri);
+    return new Promise(function(resolve, reject) {
+        epubArchive = archiver.create('zip')
+            .file(__dirname + '/skeleton/mimetype', {name: 'mimetype', store: true})
+            .bulk([
+                {expand: true, cwd: __dirname + '/skeleton', src: ['META-INF/**', 'OEBPS/**']}
+            ]);
 
-        _.each(issue.articles, function(article, chapterNo) {
-            request({
-                uri: article.uri,
-                gzip: true
-            }, function(error, response, body) {
-                if (error) {
-                    console.error(error);
-                    return;
-                }
-
-                body = body.replace('<hr>', '<hr/>');
-
-                var $ = cheerio.load(body, {xmlMode: true});
-                var $text = $('.c-text');
-
-                article.authors = $('.c-article__header__byline a')
-                    .map(function(i, anchorEl) {
-                        var $anchor = $(anchorEl);
-                        return {
-                            name: $anchor.text(),
-                            uri: url.resolve(article.uri, $anchor.attr('href'))
-                        };
-                    })
-                    .get();
-
-                $text.find('img').each(function() {
-                    var imgEl = $(this);
-                    var imageUri = url.resolve(article.uri, imgEl.attr('src'));
-                    var filename = getSlugfromUri(imageUri);
-                    epubArchive.append(request(imageUri), {name: 'OEBPS/images/' + filename});
-
-                    imgEl.attr('src', 'images/' + filename);
-
-                    epub.manifest.push({
-                        id: 'img-' + (imgCount++),
-                        href: 'images/' + filename,
-                        mediaType: getMimeType(filename)
-                    });
+        getFullIssueDescription(issueUri)
+            .done(function(issue) {
+                var outputStream = fs.createWriteStream(process.cwd() + '/' + issue.slug + '.epub');
+                outputStream.on('close', function() {
+                    console.log('  DONE');
+                    resolve();
                 });
+                epubArchive.pipe(outputStream);
 
-                $text.find('a[rev]').attr('rev', null);
+                var epub = {
+                    title: issue.name,
+                    manifest: [],
+                    spine: [],
+                    addItem: function(id, properties) {
+                        if (properties === undefined || properties === null) {
+                            properties = false;
+                        }
+                        this.spine.push({id: id, properties: properties});
+                    },
+                    addFile: function(filename) {
+                        var id = 'file-' + (this.manifest.length);
 
-                $text.find('pre > code').each(function() {
-                    var codeEl = $(this);
-                    var lang = codeEl.attr('class');
+                        this.manifest.push({
+                            id: id,
+                            href: filename,
+                            mediaType: util.getMimeType(filename)
+                        });
 
-                    if (lang === undefined) {
-                        return;
+                        return id;
                     }
+                };
 
-                    var hl = highlight.highlightAuto(codeEl.text(), [lang]);
-
-                    codeEl.empty().append(hl.value).addClass('hljs');
-                });
-
-                $text.find('a').each(function() {
-                    var anchorEl = $(this);
-
-                    if (anchorEl.attr('href') === undefined) {
-                        return null;
-                    }
-
-                    if (anchorEl.attr('href')[0] === '#') {
-                        // Ignore local links
-                        return;
-                    }
-
-                    var fullUri = url.resolve(article.uri, anchorEl.attr('href'));
-                    anchorEl.attr('href', fullUri);
-                });
-
-                article.text = $text.html();
-                var slug = getSlugfromUri(article.uri);
-
-                var filename = (10 + chapterNo) + '-' + slug + '.html';
-
-                epubArchive.append(articleTemplate({article: article}), {name: 'OEBPS/' + filename});
+                epub.addFile('fonts/Roboto-Bold.ttf');
+                epub.addFile('fonts/RobotoMono-Regular.ttf');
+                epub.addFile('styles/main.css');
                 epub.manifest.push({
-                    id: article.id,
-                    href: filename,
+                    id: 'toc',
+                    href: '01-toc.html',
+                    mediaType: 'application/xhtml+xml',
+                    properties: 'nav'
+                });
+                epub.manifest.push({
+                    id: 'cover-page',
+                    href: '00-cover.html',
                     mediaType: 'application/xhtml+xml'
                 });
-                saveContent();
-            });
-        });
 
+                epubArchive.append(request(issue.coverUri), {name: 'OEBPS/images/cover.jpg'});
+                epub.manifest.push({
+                    id: 'cover',
+                    href: 'images/cover.jpg',
+                    mediaType: 'image/jpeg',
+                    properties: 'cover-image'
+                });
+
+                var contentTemplate = jade.compileFile(__dirname + '/template/content.opf.jade', {pretty: true});
+                var articleTemplate = jade.compileFile(__dirname + '/template/article.jade', {pretty: true});
+
+                Promise.all(_.map(issue.articles, function(article) {
+                    return getArticle(article.uri)
+                }))
+                    .done(function(articles) {
+
+                        var images = [];
+                        var uriMappings = {};
+                        _.each(articles, function(article, no) {
+                            article.id = 'ch-' + no;
+                            article.filename = (10 + no) + '-' + article.slug + '.html';
+                            uriMappings[article.uri] = article.filename;
+
+                            images.push(article.$text.find('img').map(function() {
+                                return article.$(this).attr('src');
+                            }).get());
+                        });
+
+                        images = _.flatten(images);
+                        _.each(images, function(uri) {
+                            var filename = util.getSlugfromUri(uri);
+                            var path = 'images/' + filename;
+
+                            uriMappings[uri] = path;
+                            epubArchive.append(request(uri), {name: 'OEBPS/' + path});
+                            epub.addFile(path);
+                        });
+
+                        _.each(articles, function(article) {
+                            util.remapAssets(article.$, article.$text, uriMappings);
+
+                            article.text = article.$text.html();
+                            epubArchive.append(articleTemplate({article: article}), {name: 'OEBPS/' + article.filename});
+                            var id = epub.addFile(article.filename);
+                            epub.addItem(id);
+                        });
+
+                        epubArchive.append(contentTemplate(epub), {name: 'OEBPS/content.opf'});
+                        epubArchive.finalize();
+                    });
+
+            }, function(err) {
+                console.error(err);
+            });
     });
 }
 
 function downloadIssueWithNumber(no) {
-    request({
-        uri: overviewUrl,
-        gzip: true
-    }, function(error, response, body) {
-        if (error) {
-            console.error(error);
-            return;
-        }
+    getIssues()
+        .done(function(issues) {
+            var issueToGet = _.findWhere(issues, {id: no});
 
-        var $ = cheerio.load(body);
-        var issueURI = $('.c-issue-unit[id="' + no + '"]').find('a').first().attr('href');
-
-        downloadIssueWithUrl(url.resolve(overviewUrl, issueURI));
-    });
+            downloadIssueWithUrl(issueToGet.uri);
+        }, function(err) {
+            console.error(err);
+        });
 }
 
 function downloadAllIssues() {
-    request({
-        uri: overviewUrl,
-        gzip: true
-    }, function(error, response, body) {
-        if (error) {
-            console.error(error);
-            return;
-        }
-
-        var $ = cheerio.load(body);
-        var issues = $('.c-issue-unit')
-            .map(function(i, el) {
-                var $issue = $(this);
-                return {
-                    issue: $issue.attr('id'),
-                    uri: url.resolve(overviewUrl, $issue.find('a').first().attr('href'))
-                };
-            })
-            .get();
-
-        console.dir(issues);
-        _.each(issues, function(issue) {
-            downloadIssueWithUrl(issue.uri);
+    getIssues()
+        .done(function(issues) {
+            var queue = new Queue(1);
+            _.each(issues, function(issue) {
+                queue.add(function() {
+                    return downloadIssueWithUrl(issue.uri);
+                });
+            });
+        }, function(err) {
+            console.error(err);
         });
-    });
 }
 
-downloadIssueWithNumber(10);
+downloadAllIssues(1);
+//downloadAllIssues();
